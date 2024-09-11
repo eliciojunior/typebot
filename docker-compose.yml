@@ -1,0 +1,83 @@
+version: '3.3'
+
+services:
+
+  typebot-db:
+    image: postgres:13
+	restart: always
+	volumes:
+	  - db_data:/var/lib/postgresql/data
+	environment:
+	  - POSTGRES_DB:typebot
+	  - POSTGRES_PASSWORD=typebot
+
+  typebot-builder:
+    image: baptistearno/typebot-builder:latest
+	restart: always
+	ports:
+	  - 3001:3000
+	depends_on:
+	  - typebot-db
+	environment:
+	  - DATABASE_URL=postgresql://postgres:typebot@typebot-db:5432/typebot
+	  - NEXTAUTH_URL=http://localhost:3001
+	  - NEXT_PUBLIC_VIEWER_URL=http://localhost:3002
+	  - ENCRYPTION_SECRET=rp49cTHXRQuiUV4Gmqqwplika6Uipfb8
+	  - ADMIN_EMAIL=email@gmail.com
+	  - SMTP_HOST=smtp.gmail.com
+	  - SMTP_USERNAME=email@gmail.com
+	  - SMTP_PASSWORD=senha
+	  - NEXT_PUBLIC_SMTP_FROM='Suporte Typebot' <email@gmail.com>
+	  - S3_ACCESS=minio
+	  - S3_SECRET_KEY=minio123
+	  - S3_BUCKET=typebot
+	  - S3_ENDPOINT=storage.eliciojunior.site
+
+  typebot-viewer:
+    image: baptistearno/typebot-viewer:latest
+	restart: always
+	ports:
+	  - 3002:3000
+	environment:
+	  - DATABASE_URL=postgresql://postgres:typebot@typebot-db:5432/typebot
+	  - NEXTAUTH_URL=http://localhost:3001
+	  - NEXT_PUBLIC_VIEWER_URL=http://localhost:3002
+	  - ENCRYPTION_SECRET=rp49cTHXRQuiUV4Gmqqwplika6Uipfb8
+	  - ADMIN_EMAIL=email@gmail.com
+
+  mail:
+    image: bytemark/smtp
+	restart: always
+
+  minio:
+    image: minio/minio
+	command: server /data
+	ports:
+	  - '9000:9000'
+	labels:
+	  virtual_host: 'storage.eliciojunior.site'
+	  virtual_port: '9000'
+	  virtual.tls-email: 'email@gmail.com'
+	environment:
+	  MINIO_ROOT_USER: minio
+	  MINIO_ROOT_PASSWORD: minio123
+
+    volumes:
+	  - s3_data:/data
+
+  createbuckets:
+    image: minio/mc
+	depends_on:
+	  - minio
+	entrypoint: >
+	  /bin/sh -c "
+	  sleep 10;
+	  /usr/bin/mc config host add minio http://minio:9000 minio minio123;
+	  /usr/bin/mn mb minio/typebot;
+	  /usr/bin/mc anonymous set public minio/typebot/public;
+	  exit 0;
+	  "
+
+volumes:
+  db_data:
+  s3_data:
